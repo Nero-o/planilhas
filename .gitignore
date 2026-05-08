@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.venv-win/
+venv/
+.env
+data/feedback.jsonl
+data/dictionary.json
+.pytest_cache/
+.streamlit/secrets.toml
