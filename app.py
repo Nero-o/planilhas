@@ -105,6 +105,16 @@ if val["saldo"]:
         status = "OK" if s["ok"] else f"FALHOU (Δ {s['diferenca']:+.2f})"
         col.metric(f"Saldo {src}", status)
 
+for src, suspects in val.get("saldo_warnings", {}).items():
+    st.warning(
+        f"**Saldo {src}**: possível estorno faltando no extrato. "
+        f"{len(suspects)} lançamento(s) com valor igual à diferença do saldo "
+        f"e sem reversão correspondente — o banco pode tê-los estornado sem "
+        f"emitir a linha. Reexporte o extrato ou adicione o estorno manualmente."
+    )
+    with st.expander(f"Ver {len(suspects)} lançamento(s) suspeito(s)"):
+        st.dataframe(pd.DataFrame(suspects), use_container_width=True)
+
 if val["duplicates"]:
     with st.expander(f"Possíveis duplicatas vs master ({len(val['duplicates'])})"):
         st.dataframe(pd.DataFrame(val["duplicates"]), use_container_width=True)

@@ -52,10 +52,60 @@ def _check_saldo(soma_observada: float, expected: float, tol: float = 0.02) -> d
     }
 
 
+def _detect_unpaired_reversals(
+    txs_df: pd.DataFrame, source_name: str, diff: float, tol: float = 0.02
+) -> list[dict]:
+    """Find transactions whose value matches the saldo discrepancy and lack a
+    paired opposite-sign row in the same source.
+
+    Some banks (notably BS2) silently reflect an estorno in the daily saldo
+    without emitting the corresponding reversal row. When that happens the
+    saldo diff equals the value of the unreverted transaction.
+
+    Pairs entries by absolute value: each opposite-sign row "consumes" one
+    candidate. The leftover rows on the side that matches `diff`'s sign are
+    flagged as suspects.
+    """
+    if abs(diff) < tol:
+        return []
+    src_df = txs_df[txs_df.source == source_name]
+    if src_df.empty:
+        return []
+    abs_target = round(abs(diff), 2)
+    matching = src_df[(src_df["valor"].abs() - abs_target).abs() < tol]
+    if matching.empty:
+        return []
+    debits = matching[matching["valor"] < 0]
+    credits = matching[matching["valor"] > 0]
+    # diff < 0 → missing credit → suspect = leftover debits (was silently estornated)
+    # diff > 0 → missing debit  → suspect = leftover credits
+    if diff < 0 and len(debits) > len(credits):
+        leftover = debits.iloc[len(credits):]
+    elif diff > 0 and len(credits) > len(debits):
+        leftover = credits.iloc[len(debits):]
+    else:
+        return []
+    return [
+        {
+            "data": str(r["data"])[:10],
+            "tipo": r["tipo"],
+            "beneficiario": r["beneficiario"],
+            "valor": float(r["valor"]),
+            "hint": (
+                "Valor coincide com a diferença do saldo. O banco pode ter "
+                "estornado este lançamento sem emitir a linha de reversão. "
+                "Reexporte o extrato ou adicione o estorno manualmente."
+            ),
+        }
+        for _, r in leftover.iterrows()
+    ]
+
+
 def run(txs_df: pd.DataFrame, saldos: dict, anual_path: str | None = None) -> dict:
     res = {
         "counts": {"total": int(len(txs_df))},
         "saldo": {},
+        "saldo_warnings": {},
         "duplicates": [],
     }
     for c in ["green", "yellow", "red"]:
@@ -69,7 +119,14 @@ def run(txs_df: pd.DataFrame, saldos: dict, anual_path: str | None = None) -> di
         source_name = "conta_simples" if src == "cs" else src
         soma = float(txs_df.loc[txs_df.source == source_name, "valor"].sum())
         expected = s["saldo_final"] - s["saldo_inicial"]
-        res["saldo"][src] = _check_saldo(soma, expected)
+        check = _check_saldo(soma, expected)
+        res["saldo"][src] = check
+        if not check["ok"]:
+            suspects = _detect_unpaired_reversals(
+                txs_df, source_name, check["diferenca"]
+            )
+            if suspects:
+                res["saldo_warnings"][src] = suspects
 
     # Duplicates vs master
     master = _load_master_detail(anual_path)
