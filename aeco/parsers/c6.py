@@ -1,8 +1,8 @@
 """Parser for C6 Bank extrato xlsx.
 
-The bank delivers a password-protected .xlsx (OLE2 EncryptedPackage). The user
-must decrypt the file before passing it here (Arquivo → Informações → Proteger
-pasta de trabalho → Criptografar com senha → apagar e salvar).
+The bank delivers a password-protected .xlsx (OLE2 EncryptedPackage). The
+parser accepts an optional `password` and decrypts the file in-memory when
+needed; plain (already-decrypted) xlsx is passed through unchanged.
 
 Layout:
 - Single sheet named "Transaction".
@@ -16,6 +16,7 @@ Layout:
   balance), so the last row's value is the saldo final.
 """
 from datetime import datetime
+import io
 import re
 
 import openpyxl
@@ -26,6 +27,10 @@ from ..normalize import normalize_text
 
 _PIX_ENVIADO_RE = re.compile(r"^\s*Pix\s+enviado\s+para\s+(.+?)\s*$", re.IGNORECASE)
 _PIX_RECEBIDO_RE = re.compile(r"^\s*Pix\s+recebido\s+de\s+(.+?)\s*$", re.IGNORECASE)
+
+# Magic bytes
+_ZIP_SIG = b"PK\x03\x04"          # plain xlsx (ZIP container)
+_OLE2_SIG = b"\xd0\xcf\x11\xe0"   # OLE2 compound document (encrypted xlsx)
 
 
 def _to_float(x) -> float:
@@ -58,8 +63,41 @@ def _extract_tipo_benef(titulo: str, descricao: str) -> tuple[str, str]:
     return titulo, titulo
 
 
-def parse(path) -> tuple[pd.DataFrame, dict]:
-    wb = openpyxl.load_workbook(path, data_only=True)
+def _read_bytes(path) -> bytes:
+    if hasattr(path, "read"):
+        if hasattr(path, "seek"):
+            path.seek(0)
+        return path.read()
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def _decrypt_if_needed(data: bytes, password: str | None) -> bytes:
+    if data.startswith(_ZIP_SIG):
+        return data
+    if data.startswith(_OLE2_SIG):
+        if not password:
+            raise ValueError(
+                "Arquivo C6 está protegido por senha. Informe a senha no "
+                "campo 'Senha C6' antes de processar."
+            )
+        import msoffcrypto
+        office = msoffcrypto.OfficeFile(io.BytesIO(data))
+        try:
+            office.load_key(password=password)
+        except Exception as e:
+            raise ValueError(f"Falha ao abrir C6 com a senha informada: {e}") from e
+        out = io.BytesIO()
+        office.decrypt(out)
+        return out.getvalue()
+    raise ValueError(
+        "Formato de arquivo C6 não reconhecido (não é xlsx nem OLE2)."
+    )
+
+
+def parse(path, password: str | None = None) -> tuple[pd.DataFrame, dict]:
+    data = _decrypt_if_needed(_read_bytes(path), password)
+    wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
     ws = wb["Transaction"]
     header_row = None
     for i, r in enumerate(ws.iter_rows(values_only=True), start=1):
