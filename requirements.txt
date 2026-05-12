@@ -1,6 +1,7 @@
 streamlit>=1.40
 pandas>=2.2
 openpyxl>=3.1
+msoffcrypto-tool>=5.4
 anthropic>=0.40
 rapidfuzz>=3.10
 unidecode>=1.3
