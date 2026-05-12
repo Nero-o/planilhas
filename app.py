@@ -67,6 +67,12 @@ sicoob_f = c1.file_uploader("Sicoob (xlsx)", type=["xlsx"], key="sicoob_up")
 bs2_f = c2.file_uploader("BS2 (csv)", type=["csv"], key="bs2_up")
 cs_f = c3.file_uploader("Conta Simples (xlsx)", type=["xlsx"], key="cs_up")
 c6_f = c4.file_uploader("C6 (xlsx/csv)", type=["xlsx", "csv"], key="c6_up")
+c6_password = c4.text_input(
+    "Senha C6 (se necessário)",
+    type="password",
+    key="c6_pw",
+    help="Deixe em branco se o xlsx já estiver sem senha.",
+)
 
 use_llm = st.toggle(
     "Usar LLM para casos sem regra (precisa ANTHROPIC_API_KEY)",
@@ -87,7 +93,12 @@ if st.button(
         if cs_f:
             df, s = conta_simples.parse(cs_f); dfs.append(df); saldos["conta_simples"] = s
         if c6_f:
-            df, s = c6_parser.parse(c6_f); dfs.append(df); saldos["c6"] = s
+            try:
+                df, s = c6_parser.parse(c6_f, password=c6_password or None)
+            except ValueError as e:
+                st.error(str(e))
+                st.stop()
+            dfs.append(df); saldos["c6"] = s
         raw = pd.concat(dfs, ignore_index=True)
         out = classifier.classify(raw, st.session_state.dict, use_llm=use_llm)
         st.session_state.txs = out
