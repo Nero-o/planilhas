@@ -28,16 +28,31 @@ if "txs_original" not in st.session_state:
     st.session_state.txs_original = None
 if "saldos" not in st.session_state:
     st.session_state.saldos = {}
-if "dict" not in st.session_state:
+@st.cache_resource
+def _load_or_build_dict() -> dict | None:
     if Path(DICT_PATH).exists():
-        st.session_state.dict = dictmod.load(DICT_PATH)
-    else:
-        st.session_state.dict = None
+        return dictmod.load(DICT_PATH)
+    if Path(MASTER_PATH).exists():
+        with st.spinner(f"Construindo dicionário a partir de {MASTER_PATH}..."):
+            data = dictmod.build(MASTER_PATH)
+            try:
+                Path(DICT_PATH).parent.mkdir(parents=True, exist_ok=True)
+                dictmod.save(data, DICT_PATH)
+            except OSError:
+                pass  # read-only filesystem (e.g. Streamlit Cloud); keep in memory
+            return data
+    return None
+
+
+if "dict" not in st.session_state:
+    st.session_state.dict = _load_or_build_dict()
 
 if st.session_state.dict is None:
     st.error(
-        f"Dicionário não encontrado em `{DICT_PATH}`. "
-        f"Rode primeiro: `python scripts/build_dictionary.py '{MASTER_PATH}' {DICT_PATH}`"
+        f"Dicionário não encontrado em `{DICT_PATH}` e master "
+        f"`{MASTER_PATH}` também ausente. "
+        f"Suba o master para gerar o dicionário, ou rode localmente: "
+        f"`python scripts/build_dictionary.py '{MASTER_PATH}' {DICT_PATH}`"
     )
     st.stop()
 
