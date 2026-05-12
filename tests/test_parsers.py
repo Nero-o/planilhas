@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from aeco.parsers import bs2, conta_simples, sicoob
+from aeco.parsers import bs2, c6, conta_simples, sicoob
 
 
 FIXTURES = Path(__file__).resolve().parent.parent / "data" / "fixtures"
@@ -101,3 +101,50 @@ class TestContaSimples:
     def test_all_transactions_have_value(self, parsed):
         df, _ = parsed
         assert (df["valor"] != 0).all()
+
+
+class TestC6:
+    @pytest.fixture(scope="class")
+    def parsed(self):
+        return c6.parse(FIXTURES / "extrato-c6.xlsx")
+
+    def test_saldo_balances(self, parsed):
+        df, s = parsed
+        soma = df["valor"].sum()
+        expected = s["saldo_final"] - s["saldo_inicial"]
+        assert abs(soma - expected) < 0.01
+
+    def test_saldos_extracted(self, parsed):
+        _, s = parsed
+        assert s["saldo_inicial"] == 10930.67
+        assert s["saldo_final"] == 8932.67
+
+    def test_row_count(self, parsed):
+        df, _ = parsed
+        assert len(df) == 44
+
+    def test_pix_enviado_extracted(self, parsed):
+        df, _ = parsed
+        aeco = df[df["beneficiario"] == "AECO SECURITIZADORA S/A"]
+        assert len(aeco) >= 1
+        assert (aeco["tipo"] == "Pix enviado").all()
+        assert (aeco["valor"] < 0).all()
+
+    def test_pix_recebido_extracted(self, parsed):
+        df, _ = parsed
+        be = df[df["beneficiario"] == "BE T06 EMPREENDIMENTO IMOBILIARIO SPE LTDA"]
+        assert len(be) >= 1
+        assert (be["tipo"] == "Pix recebido").all()
+        assert (be["valor"] > 0).all()
+
+    def test_no_preamble_rows(self, parsed):
+        df, _ = parsed
+        # Header / title rows must not leak into the dataframe.
+        for tipo in df["tipo"]:
+            assert "EXTRATO DE CONTA" not in tipo
+            assert "Extrato gerado" not in tipo
+            assert tipo != "Data Lançamento"
+
+    def test_source_label(self, parsed):
+        df, _ = parsed
+        assert (df["source"] == "c6").all()
