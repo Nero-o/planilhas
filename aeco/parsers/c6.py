@@ -82,13 +82,15 @@ def _decrypt_if_needed(data: bytes, password: str | None) -> bytes:
                 "campo 'Senha C6' antes de processar."
             )
         import msoffcrypto
-        office = msoffcrypto.OfficeFile(io.BytesIO(data))
         try:
+            office = msoffcrypto.OfficeFile(io.BytesIO(data))
             office.load_key(password=password)
+            out = io.BytesIO()
+            office.decrypt(out)
         except Exception as e:
-            raise ValueError(f"Falha ao abrir C6 com a senha informada: {e}") from e
-        out = io.BytesIO()
-        office.decrypt(out)
+            raise ValueError(
+                f"Falha ao abrir C6 com a senha informada: {e}"
+            ) from e
         return out.getvalue()
     raise ValueError(
         "Formato de arquivo C6 não reconhecido (não é xlsx nem OLE2)."

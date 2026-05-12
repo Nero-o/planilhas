@@ -148,3 +148,52 @@ class TestC6:
     def test_source_label(self, parsed):
         df, _ = parsed
         assert (df["source"] == "c6").all()
+
+    def test_encrypted_xlsx_decrypts_with_password(self, tmp_path):
+        import subprocess
+        import sys
+        enc = tmp_path / "encrypted.xlsx"
+        subprocess.run(
+            [
+                sys.executable, "-m", "msoffcrypto",
+                "-e", "-p", "test-pw",
+                str(FIXTURES / "extrato-c6.xlsx"),
+                str(enc),
+            ],
+            check=True,
+        )
+        df, s = c6.parse(enc, password="test-pw")
+        assert len(df) == 44
+        assert s["saldo_inicial"] == 10930.67
+
+    def test_encrypted_xlsx_without_password_raises(self, tmp_path):
+        import subprocess
+        import sys
+        enc = tmp_path / "encrypted.xlsx"
+        subprocess.run(
+            [
+                sys.executable, "-m", "msoffcrypto",
+                "-e", "-p", "test-pw",
+                str(FIXTURES / "extrato-c6.xlsx"),
+                str(enc),
+            ],
+            check=True,
+        )
+        with pytest.raises(ValueError, match="protegido por senha"):
+            c6.parse(enc)
+
+    def test_encrypted_xlsx_wrong_password_raises(self, tmp_path):
+        import subprocess
+        import sys
+        enc = tmp_path / "encrypted.xlsx"
+        subprocess.run(
+            [
+                sys.executable, "-m", "msoffcrypto",
+                "-e", "-p", "test-pw",
+                str(FIXTURES / "extrato-c6.xlsx"),
+                str(enc),
+            ],
+            check=True,
+        )
+        with pytest.raises(ValueError, match="senha informada"):
+            c6.parse(enc, password="wrong")
