@@ -2,12 +2,12 @@
 
 Usage:
     python scripts/run_v0_cli.py \\
-        --sicoob "Extrato conta corrente - 032026.xlsx" \\
+        --bb "Extrato BB - Marco.xlsx" \\
         --bs2 "extratoBancoBS2_*.csv" \\
         --cs "Transações_cartões_*.xlsx" \\
         [--c6 "c6_032026.xlsx"] \\
         --dictionary data/dictionary.json \\
-        --master "Extrato AECO - Anual.xlsx" \\
+        --master "data/fixtures/Extrato AECO - Anual.xlsx" \\
         --out out_032026.xlsx \\
         --report report.txt \\
         [--no-llm]
@@ -22,17 +22,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 
 from aeco import classifier, dictionary as dictmod, exporter, validate
-from aeco.parsers import bs2, conta_simples, sicoob, c6 as c6_parser
+from aeco.parsers import bb, bs2, conta_simples, c6 as c6_parser
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--sicoob")
+    p.add_argument("--bb")
     p.add_argument("--bs2")
     p.add_argument("--cs")
     p.add_argument("--c6")
     p.add_argument("--dictionary", default="data/dictionary.json")
-    p.add_argument("--master", default="Extrato AECO - Anual.xlsx")
+    p.add_argument("--master", default="data/fixtures/Extrato AECO - Anual.xlsx")
     p.add_argument("--out", required=True)
     p.add_argument("--report", required=True)
     p.add_argument("--no-llm", action="store_true")
@@ -41,8 +41,8 @@ def main():
     dictionary = dictmod.load(args.dictionary)
 
     dfs, saldos = [], {}
-    if args.sicoob:
-        df, s = sicoob.parse(args.sicoob); dfs.append(df); saldos["sicoob"] = s
+    if args.bb:
+        df, s = bb.parse(args.bb); dfs.append(df); saldos["bb"] = s
     if args.bs2:
         df, s = bs2.parse(args.bs2); dfs.append(df); saldos["bs2"] = s
     if args.cs:

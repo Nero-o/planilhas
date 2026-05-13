@@ -6,13 +6,13 @@ from aeco.normalize import (
 
 
 class TestParseMoney:
-    def test_sicoob_credit(self):
+    def test_bb_credit(self):
         assert parse_pt_money("1.234,56 C") == 1234.56
 
-    def test_sicoob_debit_with_negative(self):
+    def test_bb_debit_with_negative(self):
         assert parse_pt_money("-188,80 D") == -188.80
 
-    def test_sicoob_credit_with_negative_defensive(self):
+    def test_bb_credit_with_negative_defensive(self):
         # Defensive: if string has negative sign but C suffix, treat as positive
         assert parse_pt_money("-100,00 C") == 100.00
 
@@ -49,7 +49,7 @@ class TestNormalize:
         assert normalize_tipo("Pix Recebido") == "Pix Recebido"
 
     def test_make_key_consistent_across_tipo_variants(self):
-        # Sicoob produces "Pix Recebido", master may have "Pix - Recebido"
+        # BB produces "Pix Recebido", master may have "Pix - Recebido"
         k1 = make_key("Pix Recebido", "AECO Securitizadora")
         k2 = make_key("Pix - Recebido", "AECO Securitizadora")
         assert k1 == k2 == "pix recebido||aeco securitizadora"

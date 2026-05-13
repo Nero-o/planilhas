@@ -17,15 +17,15 @@ def _df(rows):
 class TestSaldoCheck:
     def test_balanced_returns_ok(self):
         df = _df([
-            {"source": "sicoob", "data": datetime(2026, 3, 1), "tipo": "Pix",
+            {"source": "bb", "data": datetime(2026, 3, 1), "tipo": "Pix",
              "beneficiario": "X", "valor": 100.0},
-            {"source": "sicoob", "data": datetime(2026, 3, 2), "tipo": "Pix",
+            {"source": "bb", "data": datetime(2026, 3, 2), "tipo": "Pix",
              "beneficiario": "Y", "valor": -50.0},
         ])
-        saldos = {"sicoob": {"saldo_inicial": 1000.0, "saldo_final": 1050.0}}
+        saldos = {"bb": {"saldo_inicial": 1000.0, "saldo_final": 1050.0}}
         res = validate.run(df, saldos)
-        assert res["saldo"]["sicoob"]["ok"] is True
-        assert res["saldo"]["sicoob"]["diferenca"] == 0.0
+        assert res["saldo"]["bb"]["ok"] is True
+        assert res["saldo"]["bb"]["diferenca"] == 0.0
 
     def test_imbalanced_returns_failure(self):
         df = _df([
@@ -91,13 +91,13 @@ class TestSaldoWarnings:
 class TestCounts:
     def test_counts_per_confidence(self):
         df = pd.DataFrame([
-            {"_id": "a", "source": "sicoob", "data": datetime(2026, 3, 1),
+            {"_id": "a", "source": "bb", "data": datetime(2026, 3, 1),
              "tipo": "X", "beneficiario": "Y", "valor": 1.0, "confidence": "green"},
-            {"_id": "b", "source": "sicoob", "data": datetime(2026, 3, 1),
+            {"_id": "b", "source": "bb", "data": datetime(2026, 3, 1),
              "tipo": "X", "beneficiario": "Y", "valor": 1.0, "confidence": "yellow"},
-            {"_id": "c", "source": "sicoob", "data": datetime(2026, 3, 1),
+            {"_id": "c", "source": "bb", "data": datetime(2026, 3, 1),
              "tipo": "X", "beneficiario": "Y", "valor": 1.0, "confidence": "red"},
-            {"_id": "d", "source": "sicoob", "data": datetime(2026, 3, 1),
+            {"_id": "d", "source": "bb", "data": datetime(2026, 3, 1),
              "tipo": "X", "beneficiario": "Y", "valor": 1.0, "confidence": "red"},
         ])
         res = validate.run(df, {})

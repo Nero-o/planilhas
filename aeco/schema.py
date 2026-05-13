@@ -4,7 +4,7 @@ from typing import Literal, Optional
 import uuid
 
 
-Source = Literal["sicoob", "bs2", "bb", "conta_simples", "c6"]
+Source = Literal["bb", "bs2", "conta_simples", "c6"]
 Confidence = Literal["green", "yellow", "red"]
 ClassifierKind = Literal["rule", "llm", "manual"]
 

@@ -11,16 +11,16 @@ from aeco import exporter
 def _txs():
     rows = [
         # AECO sheet (empresa=AECO/PS/Bravo/Igor/Cons/Matriz)
-        {"_id": "1", "source": "sicoob", "data": datetime(2026, 3, 1),
+        {"_id": "1", "source": "bb", "data": datetime(2026, 3, 1),
          "tipo": "Pix Enviado", "beneficiario": "Foo", "valor": -100.0,
          "descricao": "X", "observacoes": "Y", "fluxo_caixa": "F",
          "empresa": "PS", "confidence": "green", "reasoning": "", "classifier": "rule"},
-        {"_id": "2", "source": "sicoob", "data": datetime(2026, 3, 2),
+        {"_id": "2", "source": "bb", "data": datetime(2026, 3, 2),
          "tipo": "Pix Enviado", "beneficiario": "Bar", "valor": -200.0,
          "descricao": "X", "observacoes": "Y", "fluxo_caixa": "F",
          "empresa": "AECO", "confidence": "green", "reasoning": "", "classifier": "rule"},
         # SEC sheet
-        {"_id": "3", "source": "sicoob", "data": datetime(2026, 3, 3),
+        {"_id": "3", "source": "bb", "data": datetime(2026, 3, 3),
          "tipo": "Pix Recebido", "beneficiario": "Baz", "valor": 1000.0,
          "descricao": "X", "observacoes": "Y", "fluxo_caixa": "F",
          "empresa": "Sec", "confidence": "yellow", "reasoning": "", "classifier": "rule"},
@@ -77,7 +77,7 @@ def test_c6_uses_entrada_header():
 
 
 def test_validation_sheet_first():
-    out = exporter.to_xlsx(_txs(), saldos={"sicoob": {"saldo_inicial": 100.0, "saldo_final": -200.0}})
+    out = exporter.to_xlsx(_txs(), saldos={"bb": {"saldo_inicial": 100.0, "saldo_final": -200.0}})
     wb = _read_xlsx(out)
     assert wb.sheetnames[0] == "Validação"
     # Header line

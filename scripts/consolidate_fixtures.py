@@ -20,7 +20,6 @@ Dispatch rules (case-insensitive matching on the file basename):
 
     BS2*.xlsx                                  -> bs2.parse
     Extrato BB*.xlsx                           -> bb.parse
-    Extrato conta corrente*.xlsx / sicoob*     -> sicoob.parse
     Transações_cartões*.xlsx / Conta Simples*  -> conta_simples.parse
     extrato-c6*.xlsx / c6*.xlsx                -> c6.parse
 
@@ -37,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 
 from aeco import classifier, dictionary as dictmod, exporter, validate
-from aeco.parsers import bb, bs2, c6 as c6_parser, conta_simples, sicoob
+from aeco.parsers import bb, bs2, c6 as c6_parser, conta_simples
 
 
 _MASTER_DEFAULT = "Extrato AECO - Anual.xlsx"
@@ -55,8 +54,6 @@ def _classify_file(path: Path) -> str:
         return "bs2"
     if "extrato bb" in n or n.startswith("bb"):
         return "bb"
-    if "extrato conta corrente" in n or n.startswith("sicoob"):
-        return "sicoob"
     if "transacoes_cartoes" in n or "conta simples" in n or n.startswith("cs"):
         return "conta_simples"
     if "extrato-c6" in n or n.startswith("c6") or n.startswith("extrato c6"):
@@ -67,7 +64,6 @@ def _classify_file(path: Path) -> str:
 _PARSERS = {
     "bs2": bs2.parse,
     "bb": bb.parse,
-    "sicoob": sicoob.parse,
     "conta_simples": conta_simples.parse,
     "c6": c6_parser.parse,
 }

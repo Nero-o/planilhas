@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from aeco import classifier, dictionary as dictmod, exporter, feedback, validate
-from aeco.parsers import bs2, conta_simples, sicoob
+from aeco.parsers import bb, bs2, conta_simples
 from aeco.parsers import c6 as c6_parser
 
 
@@ -63,7 +63,7 @@ observacoes = st.session_state.dict["all_observacoes"]
 # ---------- 1. Upload ----------
 st.header("1. Upload dos extratos")
 c1, c2, c3, c4 = st.columns(4)
-sicoob_f = c1.file_uploader("Sicoob (xlsx)", type=["xlsx"], key="sicoob_up")
+bb_f = c1.file_uploader("Banco do Brasil (xlsx)", type=["xlsx"], key="bb_up")
 bs2_f = c2.file_uploader("BS2 (csv)", type=["csv"], key="bs2_up")
 cs_f = c3.file_uploader("Conta Simples (xlsx)", type=["xlsx"], key="cs_up")
 c6_f = c4.file_uploader("C6 (xlsx/csv)", type=["xlsx", "csv"], key="c6_up")
@@ -82,12 +82,12 @@ use_llm = st.toggle(
 if st.button(
     "Processar",
     type="primary",
-    disabled=not any([sicoob_f, bs2_f, cs_f, c6_f]),
+    disabled=not any([bb_f, bs2_f, cs_f, c6_f]),
 ):
     with st.spinner("Lendo arquivos e classificando..."):
         dfs, saldos = [], {}
-        if sicoob_f:
-            df, s = sicoob.parse(sicoob_f); dfs.append(df); saldos["sicoob"] = s
+        if bb_f:
+            df, s = bb.parse(bb_f); dfs.append(df); saldos["bb"] = s
         if bs2_f:
             df, s = bs2.parse(bs2_f); dfs.append(df); saldos["bs2"] = s
         if cs_f:

@@ -9,7 +9,7 @@ from aeco.schema import Transaction
 
 def _tx(tipo="Pix Enviado", benef="Joao Eduardo Felipin", valor=-2000.0):
     return Transaction(
-        source="sicoob",
+        source="bb",
         raw_row={},
         data=datetime(2026, 3, 1),
         tipo=tipo,
