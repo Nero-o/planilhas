@@ -15,7 +15,7 @@ from aeco.parsers import c6 as c6_parser
 
 
 DICT_PATH = "data/dictionary.json"
-MASTER_PATH = "Extrato AECO - Anual.xlsx"
+MASTER_PATH = "data/fixtures/Extrato AECO - Anual.xlsx"
 FEEDBACK_PATH = "data/feedback.jsonl"
 
 st.set_page_config(page_title="AECO Consolidador", layout="wide")
