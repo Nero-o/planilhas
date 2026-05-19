@@ -25,6 +25,7 @@ import openpyxl
 import pandas as pd
 
 from ..normalize import normalize_text, parse_pt_money
+from ._csv_io import RowSheet, is_xlsx, read_csv_rows
 
 
 SALDO_TIPOS = {"Saldo Anterior", "Saldo do dia", "S A L D O"}
@@ -218,17 +219,27 @@ def _parse_extrato_legacy(ws) -> tuple[pd.DataFrame, dict]:
     return pd.DataFrame(rows), {"saldo_inicial": saldo_ini, "saldo_final": saldo_fim}
 
 
-def parse(path) -> tuple[pd.DataFrame, dict]:
-    wb = _load_ws(path)
-    if "Extrato Conta" in wb.sheetnames:
-        return _parse_extrato_conta(wb["Extrato Conta"])
-    ws = wb[wb.sheetnames[0]]
-    # detect by header signature
+def _detect_layout(ws) -> str:
+    """Return 'conta' or 'legacy' by inspecting the first rows."""
     for r in ws.iter_rows(min_row=1, max_row=5, values_only=True):
         if not r:
             continue
         if r[0] == "Data" and len(r) > 1 and str(r[1]).strip() in ("Lançamento", "Lancamento"):
-            return _parse_extrato_conta(ws)
+            return "conta"
         if r[0] == "Data" and any(c and "istorico" in str(c).lower() for c in r):
-            return _parse_extrato_legacy(ws)
+            return "legacy"
     raise ValueError("BB: layout não reconhecido.")
+
+
+def parse(path) -> tuple[pd.DataFrame, dict]:
+    if is_xlsx(path):
+        wb = _load_ws(path)
+        if "Extrato Conta" in wb.sheetnames:
+            return _parse_extrato_conta(wb["Extrato Conta"])
+        ws = wb[wb.sheetnames[0]]
+    else:
+        ws = RowSheet(read_csv_rows(path))
+    layout = _detect_layout(ws)
+    if layout == "conta":
+        return _parse_extrato_conta(ws)
+    return _parse_extrato_legacy(ws)

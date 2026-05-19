@@ -63,9 +63,9 @@ observacoes = st.session_state.dict["all_observacoes"]
 # ---------- 1. Upload ----------
 st.header("1. Upload dos extratos")
 c1, c2, c3, c4 = st.columns(4)
-bb_f = c1.file_uploader("Banco do Brasil (xlsx)", type=["xlsx"], key="bb_up")
-bs2_f = c2.file_uploader("BS2 (csv)", type=["csv"], key="bs2_up")
-cs_f = c3.file_uploader("Conta Simples (xlsx)", type=["xlsx"], key="cs_up")
+bb_f = c1.file_uploader("Banco do Brasil (xlsx/csv)", type=["xlsx", "csv"], key="bb_up")
+bs2_f = c2.file_uploader("BS2 (xlsx/csv)", type=["xlsx", "csv"], key="bs2_up")
+cs_f = c3.file_uploader("Conta Simples (xlsx/csv)", type=["xlsx", "csv"], key="cs_up")
 c6_f = c4.file_uploader("C6 (xlsx/csv)", type=["xlsx", "csv"], key="c6_up")
 c6_password = c4.text_input(
     "Senha C6 (se necessário)",

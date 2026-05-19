@@ -22,7 +22,8 @@ import re
 import openpyxl
 import pandas as pd
 
-from ..normalize import normalize_text
+from ..normalize import normalize_text, parse_pt_money
+from ._csv_io import RowSheet, is_xlsx, read_csv_rows
 
 
 _PIX_ENVIADO_RE = re.compile(r"^\s*Pix\s+enviado\s+para\s+(.+?)\s*$", re.IGNORECASE)
@@ -39,7 +40,11 @@ def _to_float(x) -> float:
     try:
         return float(x)
     except (TypeError, ValueError):
-        return 0.0
+        # PT-BR money string ("1.234,56") — common in CSV exports.
+        try:
+            return parse_pt_money(str(x))
+        except Exception:
+            return 0.0
 
 
 def _parse_date(x) -> datetime:
@@ -97,10 +102,18 @@ def _decrypt_if_needed(data: bytes, password: str | None) -> bytes:
     )
 
 
+def _load_sheet(path, password: str | None):
+    if is_xlsx(path):
+        data = _decrypt_if_needed(_read_bytes(path), password)
+        wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
+        if "Transaction" in wb.sheetnames:
+            return wb["Transaction"]
+        return wb[wb.sheetnames[0]]
+    return RowSheet(read_csv_rows(path))
+
+
 def parse(path, password: str | None = None) -> tuple[pd.DataFrame, dict]:
-    data = _decrypt_if_needed(_read_bytes(path), password)
-    wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
-    ws = wb["Transaction"]
+    ws = _load_sheet(path, password)
     header_row = None
     for i, r in enumerate(ws.iter_rows(values_only=True), start=1):
         if r and r[0] == "Data Lançamento":
