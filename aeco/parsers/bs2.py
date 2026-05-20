@@ -181,10 +181,18 @@ def _parse_csv(path) -> tuple[pd.DataFrame, dict]:
     for l in lines[:15]:
         if l.startswith("Saldo Atual;"):
             saldo_fim = parse_pt_money(l.split(";", 1)[1])
-    header_idx = next(
-        i for i, l in enumerate(lines)
-        if l.startswith("Data;") and "Tipo" in l and "Detalhe" in l
-    )
+    header_idx = None
+    new_format = False
+    for i, l in enumerate(lines):
+        ls = l.lstrip()
+        if ls.startswith("DataContabil") and "Tipo" in l and "Detalhe" in l:
+            header_idx, new_format = i, True
+            break
+        if ls.startswith("Data;") and "Tipo" in l and "Detalhe" in l:
+            header_idx = i
+            break
+    if header_idx is None:
+        raise ValueError("Cabeçalho do BS2 CSV não encontrado (esperado 'Data;...' ou 'DataContabil;...').")
     rows = []
     reader = csv.reader(lines[header_idx + 1:], delimiter=";")
     for parts in reader:
@@ -192,10 +200,22 @@ def _parse_csv(path) -> tuple[pd.DataFrame, dict]:
             continue
         if "sujeitos a alterações" in parts[0]:
             continue
-        if len(parts) < 9:
-            continue
-        data_str, tipo, detalhe = parts[0], parts[1], parts[2]
-        valor_str = parts[8]
+        if new_format:
+            # Normal rows: DataContabil; Data Operação; Tipo; Detalhe; ...(5); Valor; Observação (11 cols)
+            # Saldo rows may collapse to 10 cols (single date column).
+            if len(parts) >= 3 and parts[1].strip() == "Saldo":
+                data_str, tipo, detalhe = parts[0], parts[1], parts[2]
+                valor_str = parts[8] if len(parts) > 8 else ""
+            elif len(parts) >= 10:
+                data_str, tipo, detalhe = parts[0], parts[2], parts[3]
+                valor_str = parts[9]
+            else:
+                continue
+        else:
+            if len(parts) < 9:
+                continue
+            data_str, tipo, detalhe = parts[0], parts[1], parts[2]
+            valor_str = parts[8]
         if tipo.strip() == "Saldo":
             v = parse_pt_money(valor_str)
             if "Inicial" in detalhe:
@@ -203,7 +223,7 @@ def _parse_csv(path) -> tuple[pd.DataFrame, dict]:
             elif "Final" in detalhe:
                 saldo_fim = v
             continue
-        d = datetime.strptime(data_str.strip(), "%d/%m/%Y")
+        d = datetime.strptime(data_str.strip().split(" ")[0], "%d/%m/%Y")
         valor = parse_pt_money(valor_str)
         benef = _extract_benef(detalhe)
         rows.append({
