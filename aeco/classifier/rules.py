@@ -89,12 +89,33 @@ def classify_rule(tx: Transaction, dictionary: dict) -> Transaction:
         tx.reasoning = f"value_bracket_miss(valor={tx.valor:.2f}; buckets={[b['valor_aprox'] for b in entry['buckets']]})"
         return tx
 
-    # ambiguous: leave for human review with hint
-    alts = entry.get("top_alternatives", [])[:3]
+    # ambiguous: fill fields that all alternatives agree on; only empresa needs review.
+    alts = entry.get("top_alternatives", [])
     summary = "; ".join(
         f"n={a['n']} -> {a['classification'].get('empresa','?')}/{a['classification'].get('observacoes','?')}"
-        for a in alts
+        for a in alts[:3]
     )
-    tx.confidence = "red"
-    tx.reasoning = f"ambiguous: confira no DARF/e-mail. Hist: [{summary}]"
+
+    consensus: dict = {}
+    for field in ("descricao", "observacoes", "fluxo_caixa"):
+        values = {a["classification"].get(field) for a in alts}
+        if len(values) == 1:
+            (val,) = values
+            if val:
+                consensus[field] = val
+
+    # empresa: best guess = highest-n alternative (alts is already n-desc ordered).
+    if alts:
+        consensus["empresa"] = alts[0]["classification"].get("empresa")
+
+    _apply_classification(tx, consensus)
+
+    has_all_non_empresa = all(consensus.get(f) for f in ("descricao", "observacoes", "fluxo_caixa"))
+    if has_all_non_empresa:
+        tx.confidence = "yellow"
+        tx.reasoning = f"ambiguous_auto_filled: empresa precisa conferência. Hist: [{summary}]"
+        tx.classifier = "rule"
+    else:
+        tx.confidence = "red"
+        tx.reasoning = f"ambiguous_partial: campos divergem entre alternativas. Hist: [{summary}]"
     return tx

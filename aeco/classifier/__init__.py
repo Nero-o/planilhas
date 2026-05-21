@@ -30,11 +30,6 @@ def _row_to_tx(row) -> Transaction:
     )
 
 
-def _is_pure_review_external(t: Transaction) -> bool:
-    """Ambiguous keys flagged for external verification — do NOT call LLM."""
-    return t.confidence == "red" and t.reasoning.startswith("ambiguous")
-
-
 def classify(df: pd.DataFrame, dictionary: dict, *, use_llm: bool = True) -> pd.DataFrame:
     """Classify a DataFrame of raw transactions against the dictionary.
 
@@ -48,8 +43,9 @@ def classify(df: pd.DataFrame, dictionary: dict, *, use_llm: bool = True) -> pd.
     for _, row in df.iterrows():
         t = _row_to_tx(row)
         rules.classify_rule(t, dictionary)
-        # LLM only for true unknowns / value-bracket misses, never for ambiguous-by-design
-        if use_llm and t.confidence == "red" and not _is_pure_review_external(t):
+        # LLM fills remaining red rows: true unknowns, value-bracket misses, and
+        # ambiguous keys where alternatives disagreed on a non-empresa field.
+        if use_llm and t.confidence == "red":
             if examples_cache is None:
                 examples_cache = _llm().build_examples_block(dictionary)
             try:
