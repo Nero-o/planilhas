@@ -10,7 +10,7 @@ from aeco import exporter
 
 def _txs():
     rows = [
-        # AECO sheet (empresa=AECO/PS/Bravo/Igor/Cons/Matriz)
+        # bb -> SEC tab (empresa is intentionally varied to prove it is ignored)
         {"_id": "1", "source": "bb", "data": datetime(2026, 3, 1),
          "tipo": "Pix Enviado", "beneficiario": "Foo", "valor": -100.0,
          "descricao": "X", "observacoes": "Y", "fluxo_caixa": "F",
@@ -18,23 +18,22 @@ def _txs():
         {"_id": "2", "source": "bb", "data": datetime(2026, 3, 2),
          "tipo": "Pix Enviado", "beneficiario": "Bar", "valor": -200.0,
          "descricao": "X", "observacoes": "Y", "fluxo_caixa": "F",
-         "empresa": "AECO", "confidence": "green", "reasoning": "", "classifier": "rule"},
-        # SEC sheet
+         "empresa": "Tech", "confidence": "green", "reasoning": "", "classifier": "rule"},
         {"_id": "3", "source": "bb", "data": datetime(2026, 3, 3),
          "tipo": "Pix Recebido", "beneficiario": "Baz", "valor": 1000.0,
          "descricao": "X", "observacoes": "Y", "fluxo_caixa": "F",
          "empresa": "Sec", "confidence": "yellow", "reasoning": "", "classifier": "rule"},
-        # TECH sheet
+        # bs2 -> TECH tab (empresa=Sec must NOT pull it into SEC)
         {"_id": "4", "source": "bs2", "data": datetime(2026, 3, 4),
          "tipo": "Pix Enviado", "beneficiario": "Dev", "valor": -2000.0,
          "descricao": "X", "observacoes": "Y", "fluxo_caixa": "F",
-         "empresa": "Tech", "confidence": "green", "reasoning": "", "classifier": "rule"},
-        # Conta Simples
+         "empresa": "Sec", "confidence": "green", "reasoning": "", "classifier": "rule"},
+        # conta_simples -> Conta Simples tab
         {"_id": "5", "source": "conta_simples", "data": datetime(2026, 3, 5),
          "tipo": "Compra nacional", "beneficiario": "Microsoft", "valor": -100.0,
          "descricao": "X", "observacoes": "Y", "fluxo_caixa": "F",
          "empresa": "Tech", "confidence": "red", "reasoning": "", "classifier": "rule"},
-        # C6
+        # c6 -> C6 tab
         {"_id": "6", "source": "c6", "data": datetime(2026, 3, 6),
          "tipo": "Tarifa", "beneficiario": "Banco", "valor": -50.0,
          "descricao": "X", "observacoes": "Y", "fluxo_caixa": "F",
@@ -47,23 +46,32 @@ def _read_xlsx(data: bytes):
     return openpyxl.load_workbook(io.BytesIO(data), data_only=True)
 
 
-def test_routes_by_source_first_then_empresa():
+def test_routes_by_source_ignoring_empresa():
     out = exporter.to_xlsx(_txs())
     wb = _read_xlsx(out)
-    # Conta Simples and C6 routed by source regardless of empresa
+    # conta_simples and c6 route by source
     assert "Conta Simples" in wb.sheetnames
     assert wb["Conta Simples"].cell(row=4, column=3).value == "Microsoft"
     assert wb["C6"].cell(row=4, column=3).value == "Banco"
-    # AECO sheet has the AECO+PS rows
+    # all three bb rows land in SEC, regardless of their Empresa tag
+    sec_benefs = [
+        wb["SEC"].cell(row=r, column=3).value
+        for r in range(4, wb["SEC"].max_row + 1)
+    ]
+    assert set(sec_benefs) == {"Foo", "Bar", "Baz"}
+    # the bs2 row lands in TECH even though its Empresa is "Sec"
+    tech_benefs = [
+        wb["TECH"].cell(row=r, column=3).value
+        for r in range(4, wb["TECH"].max_row + 1)
+    ]
+    assert tech_benefs == ["Dev"]
+    # AECO is legacy and receives nothing from the current sources
     aeco_benefs = [
         wb["AECO"].cell(row=r, column=3).value
         for r in range(4, wb["AECO"].max_row + 1)
+        if wb["AECO"].cell(row=r, column=3).value is not None
     ]
-    assert set(aeco_benefs) == {"Foo", "Bar"}
-    # SEC has the Sec row
-    assert wb["SEC"].cell(row=4, column=3).value == "Baz"
-    # TECH has the Tech row (BS2 source)
-    assert wb["TECH"].cell(row=4, column=3).value == "Dev"
+    assert aeco_benefs == []
 
 
 def test_c6_uses_entrada_header():

@@ -14,8 +14,9 @@ Two known XLSX layouts are supported:
    ``S A L D O`` (final row, código 999) bracket the period. Sign is derived
    from the ``Historico`` description.
 
-Both produce rows with ``source = "bb"`` so they route into the AECO sheet by
-default (override via classifier/empresa).
+Both produce rows with ``source = "bb"``, which routes them into the SEC tab
+(the master's BB account tab). The ``Empresa`` classification does not affect
+routing.
 """
 from datetime import datetime
 import io

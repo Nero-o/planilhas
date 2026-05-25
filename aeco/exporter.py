@@ -11,13 +11,17 @@ Two output modes:
   newly-appended rows are unlocked so the contadora can edit them. Sheet
   protection is enabled so the lock is enforced.
 
-Routing:
+Routing is by **bank account** (``source``), because the master's detail tabs
+are one-per-account, not per-empresa:
+    - source=bb            -> "SEC"
+    - source=bs2           -> "TECH"
     - source=conta_simples -> "Conta Simples"
     - source=c6            -> "C6"
-    - else, by empresa:
-        AECO/PS/Cons/Matriz/Bravo/Igor -> "AECO"
-        Sec -> "SEC"
-        Tech -> "TECH"
+
+The ``Empresa`` column (Sec/Tech/AECO/PS/...) is an independent cost-center
+classification and is **not** used for routing — a BS2 row tagged empresa="Sec"
+still belongs to the TECH tab. "AECO" is a legacy aggregate tab and is not fed
+by any current source (it only receives unknown/future sources as a fallback).
 """
 import io
 from datetime import datetime, timedelta
@@ -33,15 +37,11 @@ CONF_FILL = {
     "red": PatternFill("solid", start_color="FFBBBB", end_color="FFBBBB"),
 }
 
-EMPRESA_TO_SHEET = {
-    "AECO": "AECO",
-    "PS": "AECO",
-    "Cons": "AECO",
-    "Matriz": "AECO",
-    "Bravo": "AECO",
-    "Igor": "AECO",
-    "Sec": "SEC",
-    "Tech": "TECH",
+SOURCE_TO_SHEET = {
+    "bb": "SEC",
+    "bs2": "TECH",
+    "conta_simples": "Conta Simples",
+    "c6": "C6",
 }
 
 SHEETS = ["AECO", "SEC", "TECH", "Conta Simples", "C6"]
@@ -56,11 +56,13 @@ HEADER_C6 = [
 
 
 def route_row(row) -> str:
-    if row["source"] == "conta_simples":
-        return "Conta Simples"
-    if row["source"] == "c6":
-        return "C6"
-    return EMPRESA_TO_SHEET.get(row["empresa"], "AECO")
+    """Route a transaction to its master tab by bank account (``source``).
+
+    The detail tabs are per-account (bb→SEC, bs2→TECH, ...); the ``Empresa``
+    column is a separate classification and is intentionally ignored here.
+    Unknown sources fall back to the legacy "AECO" aggregate tab.
+    """
+    return SOURCE_TO_SHEET.get(row["source"], "AECO")
 
 
 def _coerce_date_cell(data_val):
