@@ -100,7 +100,15 @@ if st.button(
                 st.stop()
             dfs.append(df); saldos["c6"] = s
         raw = pd.concat(dfs, ignore_index=True)
-        out = classifier.classify(raw, st.session_state.dict, use_llm=use_llm)
+        progress_bar = st.progress(0.0, text="Classificando...")
+
+        def _on_progress(done: int, total: int) -> None:
+            progress_bar.progress(done / total, text=f"LLM: {done}/{total} lançamentos")
+
+        out = classifier.classify(
+            raw, st.session_state.dict, use_llm=use_llm, on_progress=_on_progress
+        )
+        progress_bar.empty()
         st.session_state.txs = out
         st.session_state.txs_original = out.copy()
         st.session_state.saldos = saldos
