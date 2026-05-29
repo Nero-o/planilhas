@@ -38,6 +38,9 @@ def append_corrections(
                     changed[c] = {"before": b, "after": a}
             if not changed:
                 continue
+            # Store the full final classification (all 4 fields), not just the
+            # diff — the dictionary ingestion needs the unchanged fields too.
+            final = {c: getattr(r, f"{c}_after") for c in CLASS_COLS}
             f.write(json.dumps({
                 "ts": datetime.utcnow().isoformat(),
                 "tipo": r.tipo,
@@ -46,6 +49,7 @@ def append_corrections(
                 "source": r.source,
                 "classifier": r.classifier,
                 "changes": changed,
+                "final": final,
             }, ensure_ascii=False, default=str) + "\n")
             n += 1
     return n

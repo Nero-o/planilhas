@@ -4,6 +4,7 @@ import os
 import re
 import statistics
 from collections import Counter, defaultdict
+from itertools import chain
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,10 @@ from .normalize import make_key, normalize_key
 
 
 _TRAILING_SEP = re.compile(r"[\s\-–—]+$")
+
+# A contadora's correction is high-signal: count it as this many master rows so
+# a few repetitions can form a rule, without blindly overriding real history.
+FEEDBACK_WEIGHT = 3
 
 
 def _common_base(values) -> str:
@@ -78,6 +83,45 @@ def _iter_master_rows(wb):
             except (TypeError, ValueError):
                 v = 0.0
             yield key, v, cls
+
+
+def _iter_feedback_rows(feedback_path, weight: int = FEEDBACK_WEIGHT):
+    """Yield (key, valor, classification_tuple) from contadora corrections.
+
+    Each correction is emitted ``weight`` times so it carries more statistical
+    pull than a single master row, while still flowing through the same
+    ``_decide_mode`` logic (so it can't corrupt genuinely ambiguous keys).
+    Records lacking a complete ``final`` (older schema) or an ``empresa`` are
+    skipped — same leniency as the master loop.
+    """
+    path = Path(feedback_path)
+    if not path.exists():
+        return
+    weight = max(1, weight)
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            final = rec.get("final")
+            tipo = rec.get("tipo")
+            if not final or not tipo or not final.get("empresa"):
+                continue
+            key = make_key(str(tipo), str(rec.get("beneficiario") or ""))
+            cls = _classification_tuple(
+                final.get("descricao"), final.get("observacoes"),
+                final.get("fluxo_caixa"), final.get("empresa"),
+            )
+            try:
+                v = float(rec["valor"]) if rec.get("valor") is not None else 0.0
+            except (TypeError, ValueError):
+                v = 0.0
+            for _ in range(weight):
+                yield key, v, cls
 
 
 def _decide_mode(values_by_class: dict[tuple, list[float]]) -> dict:
@@ -189,7 +233,10 @@ def _decide_mode(values_by_class: dict[tuple, list[float]]) -> dict:
     }
 
 
-def build(master_path: str | Path) -> dict:
+def build(master_path: str | Path, feedback_path: str | Path | None = None) -> dict:
+    """Build the dictionary from the master xlsx, optionally folding in the
+    contadora's corrections from ``feedback_path`` (see :func:`_iter_feedback_rows`).
+    """
     wb = openpyxl.load_workbook(master_path, data_only=True)
 
     # key -> classification_tuple -> list of valores
@@ -199,7 +246,8 @@ def build(master_path: str | Path) -> dict:
     descricoes = Counter()
     observacoes = Counter()
 
-    for key, valor, cls in _iter_master_rows(wb):
+    feedback_rows = _iter_feedback_rows(feedback_path) if feedback_path else iter(())
+    for key, valor, cls in chain(_iter_master_rows(wb), feedback_rows):
         descr, obs, fluxo, empresa = cls
         if descr: descricoes[descr] += 1
         if obs: observacoes[obs] += 1

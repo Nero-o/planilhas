@@ -30,17 +30,27 @@ if "saldos" not in st.session_state:
     st.session_state.saldos = {}
 @st.cache_resource
 def _load_or_build_dict() -> dict | None:
-    if Path(DICT_PATH).exists():
+    dict_p, master_p, fb_p = Path(DICT_PATH), Path(MASTER_PATH), Path(FEEDBACK_PATH)
+    fb_arg = str(fb_p) if fb_p.exists() else None
+    # Rebuild when the dict is missing or when corrections are newer than it,
+    # so saved feedback takes effect automatically on the next run.
+    feedback_is_newer = (
+        dict_p.exists() and fb_p.exists()
+        and fb_p.stat().st_mtime > dict_p.stat().st_mtime
+    )
+    if dict_p.exists() and not feedback_is_newer:
         return dictmod.load(DICT_PATH)
-    if Path(MASTER_PATH).exists():
+    if master_p.exists():
         with st.spinner(f"Construindo dicionário a partir de {MASTER_PATH}..."):
-            data = dictmod.build(MASTER_PATH)
+            data = dictmod.build(MASTER_PATH, feedback_path=fb_arg)
             try:
-                Path(DICT_PATH).parent.mkdir(parents=True, exist_ok=True)
+                dict_p.parent.mkdir(parents=True, exist_ok=True)
                 dictmod.save(data, DICT_PATH)
             except OSError:
                 pass  # read-only filesystem (e.g. Streamlit Cloud); keep in memory
             return data
+    if dict_p.exists():  # master unavailable but a prebuilt dict exists
+        return dictmod.load(DICT_PATH)
     return None
 
 
@@ -258,4 +268,15 @@ with col_b:
         n = feedback.append_corrections(
             st.session_state.txs_original, txs, FEEDBACK_PATH
         )
-        st.success(f"{n} correção(ões) gravada(s) em {FEEDBACK_PATH}")
+        msg = f"{n} correção(ões) gravada(s) em {FEEDBACK_PATH}"
+        if n and Path(MASTER_PATH).exists():
+            with st.spinner("Reconstruindo dicionário com as correções..."):
+                data = dictmod.build(MASTER_PATH, feedback_path=FEEDBACK_PATH)
+                try:
+                    dictmod.save(data, DICT_PATH)
+                except OSError:
+                    pass  # read-only filesystem; keep the rebuilt dict in memory
+                st.session_state.dict = data
+                _load_or_build_dict.clear()  # bust cache so reruns see the update
+            msg += " — dicionário atualizado; já vale no próximo Processar."
+        st.success(msg)
