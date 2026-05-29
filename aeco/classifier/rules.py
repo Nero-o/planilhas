@@ -80,8 +80,22 @@ def classify_rule(tx: Transaction, dictionary: dict) -> Transaction:
             tol = b.get("tolerance", 0.01)
             if abs(tx.valor - b["valor_aprox"]) <= tol * max(abs(b["valor_aprox"]), 1.0):
                 _apply_classification(tx, b["classification"])
-                tx.confidence = "green"
-                tx.reasoning = f"rule:value_bucket({b['valor_aprox']:.2f}, n={b.get('n','?')})"
+                review = b.get("review_fields")
+                base = f"rule:value_bucket({b['valor_aprox']:.2f}, n={b.get('n','?')})"
+                if review:
+                    # Value identifies the lançamento but a field still rotates
+                    # (e.g. emission number in the observação) — leave for review.
+                    variants = b.get("observacoes_variants") or []
+                    hint = ""
+                    if variants:
+                        hint = " | obs no histórico: " + "; ".join(
+                            f"{v['observacoes']}(n={v['n']})" for v in variants[:5]
+                        )
+                    tx.confidence = "yellow"
+                    tx.reasoning = f"{base}; revisar {review}{hint}"
+                else:
+                    tx.confidence = "green"
+                    tx.reasoning = base
                 tx.classifier = "rule"
                 return tx
         # No bucket matched — open question, send to LLM

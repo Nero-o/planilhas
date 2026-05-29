@@ -1,5 +1,7 @@
 """Build and load the classification dictionary from the master xlsx."""
 import json
+import os
+import re
 import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -8,6 +10,23 @@ from typing import Any
 import openpyxl
 
 from .normalize import make_key, normalize_key
+
+
+_TRAILING_SEP = re.compile(r"[\s\-–—]+$")
+
+
+def _common_base(values) -> str:
+    """Longest common prefix of obs variants, trimmed of trailing separators.
+
+    When a recurring value maps to several observação variants that share a stem
+    (e.g. 'Contabilidade - PS - {N}ª Emissão'), we keep the stem and leave the
+    distinguishing suffix for the contadora to complete.
+    """
+    cleaned = [v.strip() for v in values if isinstance(v, str) and v.strip()]
+    if not cleaned:
+        return ""
+    base = os.path.commonprefix(cleaned)
+    return _TRAILING_SEP.sub("", base).strip()
 
 
 DETAIL_SHEETS = ["AECO", "SEC", "C6", "TECH", "Conta Simples"]
@@ -108,6 +127,8 @@ def _decide_mode(values_by_class: dict[tuple, list[float]]) -> dict:
         if n_at_val < 2:
             continue
         bucket_cls = {}
+        review_fields = []
+        observacoes_variants = None
         confident_fields = 0
         for fname in CLASS_COLS:
             counts = field_counts[fname]
@@ -117,16 +138,32 @@ def _decide_mode(values_by_class: dict[tuple, list[float]]) -> dict:
             if top_n / n_at_val >= 0.70:
                 bucket_cls[fname] = top_v
                 confident_fields += 1
+            elif fname == "observacoes":
+                # Value recurs but the observação suffix rotates (e.g. emission
+                # number). Fill the shared stem and hand the rest to the contadora.
+                review_fields.append(fname)
+                bucket_cls[fname] = _common_base(counts.keys())
+                observacoes_variants = [
+                    {"observacoes": v, "n": c}
+                    for v, c in counts.most_common()
+                    if v
+                ]
             else:
-                bucket_cls[fname] = top_v  # best guess; UI marks lower confidence
+                review_fields.append(fname)
+                bucket_cls[fname] = top_v  # best guess; UI marks for review
         if confident_fields >= 3:
-            buckets.append({
+            bucket = {
                 "valor_aprox": val,
                 "tolerance": 0.01,
                 "n": n_at_val,
                 "confident_fields": confident_fields,
                 "classification": bucket_cls,
-            })
+            }
+            if review_fields:
+                bucket["review_fields"] = review_fields
+            if observacoes_variants:
+                bucket["observacoes_variants"] = observacoes_variants
+            buckets.append(bucket)
             covered += n_at_val
 
     if len(buckets) >= 2 and covered / total >= 0.50:

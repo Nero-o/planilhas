@@ -20,8 +20,9 @@ are one-per-account, not per-empresa:
 
 The ``Empresa`` column (Sec/Tech/AECO/PS/...) is an independent cost-center
 classification and is **not** used for routing — a BS2 row tagged empresa="Sec"
-still belongs to the TECH tab. "AECO" is a legacy aggregate tab and is not fed
-by any current source (it only receives unknown/future sources as a fallback).
+still belongs to the TECH tab. "AECO" is the consolidated tab: it holds the
+**union of every transaction**, so it mirrors SEC ∪ TECH ∪ Conta Simples ∪ C6
+(plus any unknown-source rows, which land only in AECO).
 """
 import io
 from datetime import datetime, timedelta
@@ -56,13 +57,26 @@ HEADER_C6 = [
 
 
 def route_row(row) -> str:
-    """Route a transaction to its master tab by bank account (``source``).
+    """Route a transaction to its per-account breakdown tab by ``source``.
 
-    The detail tabs are per-account (bb→SEC, bs2→TECH, ...); the ``Empresa``
+    The breakdown tabs are per-account (bb→SEC, bs2→TECH, ...); the ``Empresa``
     column is a separate classification and is intentionally ignored here.
-    Unknown sources fall back to the legacy "AECO" aggregate tab.
+    Unknown sources fall back to "AECO". Note the consolidated "AECO" tab is the
+    union of every transaction and is populated via :func:`_rows_for_sheet`, not
+    by this function alone.
     """
     return SOURCE_TO_SHEET.get(row["source"], "AECO")
+
+
+def _rows_for_sheet(routed: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
+    """Rows destined for ``sheet_name``.
+
+    "AECO" is the consolidated tab — the union of every transaction. The other
+    tabs are the per-account breakdowns selected by ``route_row``.
+    """
+    if sheet_name == "AECO":
+        return routed
+    return routed[routed._sheet == sheet_name]
 
 
 def _coerce_date_cell(data_val):
@@ -98,9 +112,11 @@ def _write_validation_sheet(wb, txs_df, saldos: dict | None):
         ])
     ws.append([])
     ws.append(["Distribuição por aba"])
-    counts = txs_df.apply(route_row, axis=1).value_counts().to_dict()
-    for sheet, n in counts.items():
-        ws.append([sheet, n])
+    routed_sheets = txs_df.apply(route_row, axis=1)
+    for sheet in SHEETS:
+        n = len(txs_df) if sheet == "AECO" else int((routed_sheets == sheet).sum())
+        if n:
+            ws.append([sheet, n])
 
 
 def _append_tx_row(ws, r, unlock: bool):
@@ -144,7 +160,7 @@ def to_xlsx(txs_df: pd.DataFrame, saldos: dict | None = None) -> bytes:
         ws.append(header)
         for c in ws[3]:
             c.font = Font(bold=True)
-        rows = routed[routed._sheet == sheet_name]
+        rows = _rows_for_sheet(routed, sheet_name)
         for r in rows.itertuples():
             _append_tx_row(ws, r, unlock=True)
 
@@ -193,7 +209,7 @@ def to_xlsx_overlay(
             for c in ws[1]:
                 c.font = Font(bold=True)
         ws = wb[sheet_name]
-        rows = routed[routed._sheet == sheet_name]
+        rows = _rows_for_sheet(routed, sheet_name)
         if rows.empty:
             continue
         # Append after the last data row (preserves master rows unchanged).

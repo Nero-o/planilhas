@@ -86,6 +86,37 @@ class TestValueBracketsMode:
         classify_rule(tx2, d)
         assert tx2.descricao == "Aviso"
 
+    def test_review_field_bucket_is_yellow_with_base_obs(self):
+        # AECO Sec reembolso: value recurs but the observação suffix (emission)
+        # rotates. Fill the shared stem, leave the rest for the contadora.
+        d = _dict({
+            "pix recebido||aeco securitizadora": {
+                "mode": "value_brackets", "n": 32,
+                "buckets": [
+                    {"valor_aprox": 350.0, "tolerance": 0.01, "n": 32,
+                     "review_fields": ["observacoes"],
+                     "observacoes_variants": [
+                         {"observacoes": "Contabilidade - PS - 4ª Emissão", "n": 10},
+                         {"observacoes": "Contabilidade - PS - 6ª Emissão", "n": 9},
+                     ],
+                     "classification": {"descricao": "Reembolso de Despesas",
+                                        "observacoes": "Contabilidade - PS",
+                                        "fluxo_caixa": "Reembolso de Despesas",
+                                        "empresa": "PS"}},
+                ],
+            }
+        })
+        tx = _tx(tipo="Pix Recebido", benef="AECO Securitizadora", valor=350.0)
+        classify_rule(tx, d)
+        assert tx.confidence == "yellow"
+        assert tx.observacoes == "Contabilidade - PS"
+        assert tx.empresa == "PS"
+        assert tx.classifier == "rule"
+        assert "revisar" in tx.reasoning
+        assert "['observacoes']" in tx.reasoning
+        # Historical variants surfaced so the contadora can pick the emission.
+        assert "Contabilidade - PS - 4ª Emissão(n=10)" in tx.reasoning
+
     def test_no_bucket_match_is_red(self):
         d = _dict({
             "pix enviado||joao eduardo felipin": {

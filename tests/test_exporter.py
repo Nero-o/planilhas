@@ -65,13 +65,14 @@ def test_routes_by_source_ignoring_empresa():
         for r in range(4, wb["TECH"].max_row + 1)
     ]
     assert tech_benefs == ["Dev"]
-    # AECO is legacy and receives nothing from the current sources
+    # AECO is the consolidated tab — the union of every transaction
     aeco_benefs = [
         wb["AECO"].cell(row=r, column=3).value
         for r in range(4, wb["AECO"].max_row + 1)
         if wb["AECO"].cell(row=r, column=3).value is not None
     ]
-    assert aeco_benefs == []
+    assert set(aeco_benefs) == {"Foo", "Bar", "Baz", "Dev", "Microsoft", "Banco"}
+    assert len(aeco_benefs) == 6  # all rows, none dropped or duplicated
 
 
 def test_c6_uses_entrada_header():
